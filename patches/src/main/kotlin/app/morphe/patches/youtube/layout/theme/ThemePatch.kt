@@ -14,6 +14,7 @@ import app.morphe.patcher.extensions.InstructionExtensions.addInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.extensions.InstructionExtensions.getInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
+import app.morphe.patcher.anyInstruction
 import app.morphe.patcher.methodCall
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.resourcePatch
@@ -201,20 +202,24 @@ private val FOREGROUND_COLOR_CALLS = listOf(
         parameters = listOf("I"),
         returnType = "Landroid/content/res/ColorStateList;"
     ) to 0,
-    methodCall(
-        name = "setColorFilter",
-        parameters = listOf("I", $$"Landroid/graphics/PorterDuff$Mode;"),
-        returnType = "V"
-    ) to 1,
-    methodCall(
-        name = "setColorFilter",
-        parameters = listOf("I"),
-        returnType = "V"
-    ) to 1,
-    methodCall(
-        name = "setTint",
-        parameters = listOf("I"),
-        returnType = "V"
+    // These calls declare no class, so none of them can use the fingerprint index and each
+    // is a scan of every method in the app. Grouping them in one filter makes it a single scan.
+    anyInstruction(
+        methodCall(
+            name = "setColorFilter",
+            parameters = listOf("I", $$"Landroid/graphics/PorterDuff$Mode;"),
+            returnType = "V"
+        ),
+        methodCall(
+            name = "setColorFilter",
+            parameters = listOf("I"),
+            returnType = "V"
+        ),
+        methodCall(
+            name = "setTint",
+            parameters = listOf("I"),
+            returnType = "V"
+        )
     ) to 1
 )
 

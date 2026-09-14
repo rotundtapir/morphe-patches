@@ -7,6 +7,7 @@
 package app.morphe.patches.music.interaction.crossfade
 
 import app.morphe.patcher.Fingerprint
+import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.extensions.InstructionExtensions.addInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.extensions.InstructionExtensions.instructions
@@ -526,18 +527,22 @@ val crossfadePatch = bytecodePatch(
 
         // Video surface - resolved by finding a class that holds an ExoPlayer field
         // and is itself a field on the coordinator (not one of the already-known types).
-        val videoSurfaceClass = Fingerprint(
-            custom = { _, classDef ->
-                !AccessFlags.INTERFACE.isSet(classDef.accessFlags)
-                        && classDef.fields.any {
-                    it.type == EXO_PLAYER_TYPE
-                }
-                        && coordinatorClass.fields.map { it.type }.any { it == classDef.type }
-                        && classDef.type !in knownFieldTypes
-                        && classDef.type != sharedStateFieldRef.type
-                        && classDef.type != sharedCallbackFieldRef.type
+        // Only the types of the coordinator fields can qualify, so those few classes are
+        // looked up directly instead of scanning every class in the app.
+        val videoSurfaceClass = coordinatorClass.fields.asSequence()
+            .map { it.type }
+            .distinct()
+            .filter {
+                it !in knownFieldTypes
+                        && it != sharedStateFieldRef.type
+                        && it != sharedCallbackFieldRef.type
             }
-        ).classDef
+            .mapNotNull { classDefByOrNull(it) }
+            .firstOrNull { classDef ->
+                !AccessFlags.INTERFACE.isSet(classDef.accessFlags)
+                        && classDef.fields.any { it.type == EXO_PLAYER_TYPE }
+            }?.let { mutableClassDefBy(it) }
+            ?: throw PatchException("Could not find video surface class")
         val videoSurfaceField = coordinatorClass.fields.first { it.type == videoSurfaceClass.type }
         val videoSurfaceExoField = videoSurfaceClass.fields.first {
             it.type == EXO_PLAYER_TYPE

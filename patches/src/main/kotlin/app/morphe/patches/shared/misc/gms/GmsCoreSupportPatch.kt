@@ -11,7 +11,6 @@
 package app.morphe.patches.shared.misc.gms
 
 import app.morphe.patcher.Fingerprint
-import app.morphe.patcher.InstructionFilter
 import app.morphe.patcher.extensions.InstructionExtensions.addInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.getInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.instructions
@@ -25,6 +24,7 @@ import app.morphe.patcher.patch.ResourcePatchBuilder
 import app.morphe.patcher.patch.ResourcePatchContext
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.resourcePatch
+import app.morphe.patcher.StringComparisonType
 import app.morphe.patcher.string
 import app.morphe.patches.all.misc.clone.cloneAppPatch
 import app.morphe.patches.all.misc.clone.setOrGetFallbackPackageName
@@ -168,16 +168,13 @@ fun gmsCoreSupportPatch(
 
         // endregion
 
-        val contentUriFilter = InstructionFilter { _, instruction ->
-            if (instruction.opcode != Opcode.CONST_STRING) return@InstructionFilter false
-            val stringRef = (instruction as? ReferenceInstruction)?.reference as? StringReference ?: return@InstructionFilter false
-            contentUrisTransform(stringRef.string) != null
-        }
-
-        contentUriFilter.matchAllMethodIndicesForEach(requireMatches = false) { index ->
+        // A string filter is indexed, so only classes that have a content:// string are scanned.
+        string("content://", StringComparisonType.STARTS_WITH).matchAllMethodIndicesForEach(
+            requireMatches = false
+        ) { index ->
             val instruction = getInstruction<ReferenceInstruction>(index)
             val string = (instruction.reference as StringReference).string
-            val transformedString = contentUrisTransform(string)!!
+            val transformedString = contentUrisTransform(string) ?: return@matchAllMethodIndicesForEach
 
             replaceInstruction(
                 index,
